@@ -1,0 +1,8 @@
+[package]
+name = "arboretum"
+version = "0.1.0"
+edition = "2021"
+authors = ["federico-paolillo"]
+description = "Some trees implementations in Rust"
+
+[dependencies]
