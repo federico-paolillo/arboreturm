@@ -82,6 +82,13 @@ impl<V: PartialOrd> Bst<V> {
             Some(ref root) => deep_contains(root, value),
         }
     }
+
+    pub fn remove(&mut self, value: V) {
+        match self.root {
+            None => (),
+            Some(_) => deep_delete(self, value),
+        };
+    }
 }
 
 fn deep_insert<V: PartialOrd>(node: &Link<V>, value: V) {
@@ -102,11 +109,11 @@ fn deep_insert<V: PartialOrd>(node: &Link<V>, value: V) {
     }
 }
 
-fn deep_find<V: PartialOrd>(node: &Link<V>, value: V) -> MaybeWeakLink<V> {
+fn deep_find<V: PartialOrd>(node: &Link<V>, value: V) -> MaybeLink<V> {
     let ref_node = node.borrow();
 
     if ref_node.value == value {
-        return Some(Rc::downgrade(node));
+        return Some(Rc::clone(node));
     }
 
     if ref_node.value < value {
@@ -128,5 +135,59 @@ fn deep_contains<V: PartialOrd>(node: &Link<V>, value: V) -> bool {
     match maybe_node {
         None => false,
         Some(_) => true,
+    }
+}
+
+fn deep_delete<V: PartialOrd>(bst: &mut Bst<V>, value: V) {}
+
+fn shift_nodes<V: PartialOrd>(bst: &mut Bst<V>, node_a: &mut Link<V>, o_node_b: &mut MaybeLink<V>) {
+    let m_node_a = node_a.borrow_mut();
+
+    if let None = m_node_a.parent {
+        match o_node_b {
+            None => bst.root.take(),
+            Some(ref r_node_b) => bst.root.replace(Rc::clone(r_node_b)),
+        };
+
+        return;
+    }
+
+    let w_node_a_parent = m_node_a.parent.as_ref().unwrap();
+    let o_node_a_parent = w_node_a_parent.upgrade();
+
+    if let None = o_node_a_parent {
+        panic!("Weird Bst structure detected. Found an orphan node");
+    }
+
+    let node_a_parent = o_node_a_parent.unwrap();
+    let mut m_node_a_parent = node_a_parent.borrow_mut();
+
+    if let Some(ref r_node_a_parent_left) = m_node_a_parent.left {
+        // Node A is at the left of Node A Parent
+        if Rc::ptr_eq(node_a, r_node_a_parent_left) {
+            // We replace Node A on Node A Parent left with Node B
+            match o_node_b {
+                None => m_node_a_parent.left.take(),
+                Some(ref r_node_b) => m_node_a_parent.left.replace(Rc::clone(r_node_b)),
+            };
+
+            return;
+        }
+    }
+    // Node A is at the right of Node A Parent
+    else {
+        // We replace Node A on Node A Parent right with Node B
+        match o_node_b {
+            None => m_node_a_parent.right.take(),
+            Some(ref r_node_b) => m_node_a_parent.right.replace(Rc::clone(r_node_b)),
+        };
+
+        return;
+    }
+
+    // Now we fix Node B by changing Node B Parent to Node A Parent
+    if let Some(ref r_node_b) = o_node_b {
+        let mut m_node_b = r_node_b.borrow_mut();
+        m_node_b.parent.replace(Rc::downgrade(&node_a_parent));
     }
 }
